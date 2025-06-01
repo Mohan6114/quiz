@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Aptitude Quiz Game</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      display: flex;
+      height: 100vh;
+      background: #f0f4f8;
+    }
+    .sidebar {
+      width: 200px;
+      background: #1e2a38;
+      color: white;
+      padding: 20px;
+      overflow-y: auto;
+    }
+    .sidebar h3 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .question-status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: center;
+    }
+    .status-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: none;
+      font-weight: bold;
+      color: white;
+      cursor: pointer;
+      background-color: #555;
+    }
+    .status-btn.current { background-color: #2196f3; }
+    .status-btn.visited { background-color: #ffeb3b; color: #000; }
+    .status-btn.correct { background-color: #4caf50; }
+    .status-btn.wrong { background-color: #f44336; }
+    .main {
+      flex: 1;
+      padding: 30px;
+      position: relative;
+      overflow-y: auto;
+    }
+    .timer {
+      position: absolute;
+      top: 20px;
+      right: 30px;
+      font-size: 18px;
+      font-weight: bold;
+      color: #f44336;
+    }
+    .question-box {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+    }
+    .question-number {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .question-text {
+      font-size: 18px;
+      margin-bottom: 20px;
+    }
+    .option {
+      background: #f1f1f1;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .option:hover { background-color: #d0e6ff; }
+    .option.correct { background-color: #c8e6c9; }
+    .option.wrong { background-color: #ffcdd2; }
+    .visited-answer { background-color: #ffeb3b !important; }
+    .controls { margin-top: 20px; }
+    .controls button {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    .controls button:hover { background-color: #0056b3; }
+    .score-section {
+      display: none;
+      text-align: center;
+    }
+    .score-section h2 { color: #007bff; }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h3>Questions</h3>
+    <div class="question-status" id="status-bar"></div>
+  </div>
+  <div class="main">
+    <div class="timer" id="timer">Time: 10:00</div>
+    <div class="question-box" id="quiz-box">
+      <div class="question-number" id="question-number"></div>
+      <div class="question-text" id="question-text"></div>
+      <div id="options"></div>
+      <div class="controls">
+        <button id="next-btn">Next</button>
+      </div>
+    </div>
+    <div class="score-section" id="score-section">
+      <h2>Your Score: <span id="score"></span> / <span id="total"></span></h2>
+      <button onclick="restartQuiz()">Restart Quiz</button>
+    </div>
+  </div>
+
+  <script>
+    const questions = [
+      { question: "What is 5 + 3?", options: ["6", "8", "9", "7"], answer: "8" },
+      { question: "If x = 2, what is x²?", options: ["2", "4", "6", "8"], answer: "4" },
+      { question: "Find the next number: 2, 4, 8, ?", options: ["12", "14", "16", "10"], answer: "16" },
+      { question: "Which is a prime number?", options: ["4", "6", "9", "7"], answer: "7" },
+      { question: "What is 15% of 200?", options: ["20", "30", "25", "35"], answer: "30" },
+      { question: "What is √49?", options: ["6", "7", "8", "9"], answer: "7" },
+      { question: "Solve: 10 - (2 × 3)", options: ["4", "6", "8", "2"], answer: "4" },
+      { question: "Which shape has 4 equal sides?", options: ["Rectangle", "Square", "Triangle", "Pentagon"], answer: "Square" },
+      { question: "What is the average of 4, 6, 8?", options: ["6", "7", "5", "8"], answer: "6" },
+      { question: "Find the odd one out: 3, 5, 7, 9, 11", options: ["5", "9", "7", "11"], answer: "9" },
+      { question: "What is 3² + 4²?", options: ["12", "25", "16", "20"], answer: "25" },
+      { question: "What comes next: 1, 4, 9, 16, ?", options: ["20", "25", "36", "30"], answer: "25" },
+      { question: "Simplify: 3(2 + 1)", options: ["9", "6", "7", "8"], answer: "9" },
+      { question: "What is 12 ÷ 4 + 2?", options: ["5", "3", "6", "4"], answer: "5" },
+      { question: "What is 25% of 80?", options: ["20", "15", "25", "30"], answer: "20" }
+    ];
+
+    let currentQuestion = 0;
+    let score = 0;
+    let timeLeft = 600;
+    let timerInterval;
+    let userAnswers = {};
+    const answerStatus = {};
+
+    const questionNumber = document.getElementById("question-number");
+    const questionText = document.getElementById("question-text");
+    const optionsBox = document.getElementById("options");
+    const nextBtn = document.getElementById("next-btn");
+    const scoreSection = document.getElementById("score-section");
+    const quizBox = document.getElementById("quiz-box");
+    const scoreEl = document.getElementById("score");
+    const totalEl = document.getElementById("total");
+    const statusBar = document.getElementById("status-bar");
+    const timerDisplay = document.getElementById("timer");
+
+    function startTimer() {
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        const min = Math.floor(timeLeft / 60);
+        const sec = timeLeft % 60;
+        timerDisplay.textContent = `Time: ${min}:${sec < 10 ? '0' + sec : sec}`;
+        timeLeft--;
+        if (timeLeft < 0) {
+          clearInterval(timerInterval);
+          showScore();
+        }
+      }, 1000);
+    }
+
+    function showQuestion(index) {
+      const q = questions[index];
+      questionNumber.textContent = `Question ${index + 1} of ${questions.length}`;
+      questionText.textContent = q.question;
+      optionsBox.innerHTML = "";
+      q.options.forEach(opt => {
+        const div = document.createElement("div");
+        div.classList.add("option");
+        div.textContent = opt;
+        div.onclick = () => selectOption(div, opt, index);
+        optionsBox.appendChild(div);
+      });
+
+      if (userAnswers[index]) {
+        document.querySelectorAll(".option").forEach(opt => {
+          if (opt.textContent === userAnswers[index]) {
+            opt.classList.add("visited-answer");
+          }
+        });
+      }
+
+      answerStatus[index] = answerStatus[index] || "visited";
+      updateStatusButtons();
+    }
+
+    function selectOption(selectedDiv, selectedText, index) {
+      userAnswers[index] = selectedText;
+      answerStatus[index] = "visited";
+      updateStatusButtons();
+      nextBtn.disabled = false;
+    }
+
+    nextBtn.onclick = () => {
+      currentQuestion++;
+      if (currentQuestion < questions.length) {
+        showQuestion(currentQuestion);
+        nextBtn.disabled = true;
+      } else {
+        showScore();
+      }
+    };
+
+    function showScore() {
+      clearInterval(timerInterval);
+      quizBox.style.display = "none";
+      scoreSection.style.display = "block";
+      score = 0;
+
+      const reviewBox = document.createElement("div");
+      reviewBox.innerHTML = "<h3>Review Answers:</h3>";
+
+      questions.forEach((q, i) => {
+        const questionDiv = document.createElement("div");
+        questionDiv.classList.add("question-box");
+        questionDiv.style.marginTop = "20px";
+
+        const qTitle = document.createElement("div");
+        qTitle.className = "question-number";
+        qTitle.innerText = `Q${i + 1}: ${q.question}`;
+        questionDiv.appendChild(qTitle);
+
+        q.options.forEach(opt => {
+          const optDiv = document.createElement("div");
+          optDiv.classList.add("option");
+          optDiv.textContent = opt;
+
+          if (opt === q.answer) optDiv.classList.add("correct");
+          else if (userAnswers[i] === opt && opt !== q.answer) optDiv.classList.add("wrong");
+
+          questionDiv.appendChild(optDiv);
+        });
+
+        reviewBox.appendChild(questionDiv);
+
+        if (userAnswers[i] === q.answer) {
+          score++;
+          answerStatus[i] = "correct";
+        } else {
+          answerStatus[i] = "wrong";
+        }
+      });
+
+      scoreEl.innerText = score;
+      totalEl.innerText = questions.length;
+      document.querySelector(".main").appendChild(reviewBox);
+      updateStatusButtons();
+    }
+
+    function restartQuiz() {
+      currentQuestion = 0;
+      score = 0;
+      timeLeft = 600;
+      userAnswers = {};
+      quizBox.style.display = "block";
+      scoreSection.style.display = "none";
+      document.querySelectorAll(".main .question-box").forEach((box, idx) => idx > 0 && box.remove());
+      Object.keys(answerStatus).forEach(key => delete answerStatus[key]);
+      statusBar.innerHTML = "";
+      setupStatusBar();
+      showQuestion(currentQuestion);
+      nextBtn.disabled = true;
+      startTimer();
+    }
+
+    function setupStatusBar() {
+      questions.forEach((_, i) => {
+        const btn = document.createElement("button");
+        btn.classList.add("status-btn");
+        btn.textContent = i + 1;
+        btn.dataset.index = i;
+        btn.onclick = () => {
+          currentQuestion = i;
+          showQuestion(i);
+          nextBtn.disabled = true;
+        };
+        statusBar.appendChild(btn);
+      });
+    }
+
+    function updateStatusButtons() {
+      document.querySelectorAll(".status-btn").forEach(btn => {
+        const i = +btn.dataset.index;
+        btn.className = "status-btn";
+        if (i === currentQuestion) btn.classList.add("current");
+        else if (answerStatus[i] === "correct") btn.classList.add("correct");
+        else if (answerStatus[i] === "wrong") btn.classList.add("wrong");
+        else if (answerStatus[i] === "visited") btn.classList.add("visited");
+      });
+    }
+
+    setupStatusBar();
+    showQuestion(currentQuestion);
+    nextBtn.disabled = true;
+    startTimer();
+  </script>
+</body>
+</html>
